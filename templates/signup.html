@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    DMYD | Sign up
+{% endblock title %}
+
+{% block body %}
+
+    <form action="/api/signup" method="POST">
+
+        <input type="text" name="name" id="name" placeholder="Name">
+        <input type="text" name="surname" id="surname" placeholder="Surname">
+        <input type="email" name="email" id="email" placeholder="Login">
+        <input type="password" name="password" id="password" placeholder="Password">
+        <input type="password" name="password_repeat" id="password_repeat" placeholder="Repeat your password">
+
+        <input type="submit">
+
+    </form>
+
+
+{% endblock body %}

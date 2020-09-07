@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    DMYD | Login
+{% endblock title %}
+
+{% block body %}
+
+    <form action="/api/login" method="POST">
+
+        <input type="email" name="email" id="email" placeholder="Login">
+        <input type="password" name="password" id="password" placeholder="Password">
+
+        <input type="submit">
+
+    </form>
+
+
+{% endblock body %}
