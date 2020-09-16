@@ -1,9 +1,12 @@
 import re
 
 from flask import Flask, render_template, request
+from pathlib import Path
 
 from api.models import db
 from api.models.user import User
+
+Path("./database").mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
