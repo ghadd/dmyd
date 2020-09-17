@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    DMYD
+{% endblock title %}
+
+{% block body %}
+    <form action="/api/addFriend" method="POST">
+        <div class="friend_finder">
+            <label>
+                <input type="text" name="friend" id="friend" placeholder="Enter friend' email...">
+            </label>
+            <input type="submit" value="Add">
+        </div>
+    </form>
+
+    {% for friend in friends %}
+        <a href="/chats?thread={{ friend.id }}">{{ friend.first_name }}</a>
+    {% endfor %}
+
+    <div class="messages">
+        {% for message in messages %}
+            <ul>{{ message.from_user.first_name }}:
+                {{ decrypt_message(message) }}</ul>
+        {% endfor %}
+    </div>
+
+    {% if active_chat %}
+        <form action="/api/sendMessage?thread={{ active_chat }}" method="POST">
+            <div class="textfield">
+                <label>
+                    <input type="text" name="message" id="message" placeholder="Type here...">
+                </label>
+                <input type="submit">
+            </div>
+        </form>
+    {% else %}
+        <div class="no_chat_open">
+            <h3>Select chat and communicate!</h3>
+        </div>
+    {% endif %}
+{% endblock body %}

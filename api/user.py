@@ -1,8 +1,16 @@
 import hashlib
-from .api import db
+
+from flask_login import UserMixin
+
+from .api import db, login_manager
+
+friends_table = db.Table('friends',
+                         db.Column('user_id', db.Integer, db.ForeignKey('users.id')),
+                         db.Column('friend_id', db.Integer, db.ForeignKey('users.id'))
+                         )
 
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -12,7 +20,12 @@ class User(db.Model):
     pwd_hash = db.Column(db.Integer)
     tpass = db.Column(db.Integer)
 
-    # todo peers
+    friends = db.relationship('User',  # defining the relationship, User is left side entity
+                              secondary=friends_table,
+                              primaryjoin=(friends_table.c.user_id == id),
+                              secondaryjoin=(friends_table.c.friend_id == id),
+                              lazy='dynamic'
+                              )
 
     def matches_pwd(self, pwd):
         return self.pwd_hash == hashlib.md5(pwd.encode()).hexdigest()
@@ -26,3 +39,8 @@ class User(db.Model):
 
     def __repr__(self):
         return '<User %r>' % self.id
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(user_id)

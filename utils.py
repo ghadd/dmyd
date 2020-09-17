@@ -5,12 +5,12 @@ from crypto import decrypt
 
 
 def get_current_user():
+    # cookies
     uid = 1
     return User.query.filter_by(id=uid).first()
 
 
-def get_receiver():
-    uid = 1
+def get_receiver(uid):
     return User.query.filter_by(id=uid).first()
 
 
