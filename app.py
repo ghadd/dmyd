@@ -1,12 +1,8 @@
 import re
 
-from flask import Flask, render_template, request
-from pathlib import Path
-
-from api.models import db
-from api.models.user import User
-
-Path("./database").mkdir(parents=True, exist_ok=True)
+from flask import Flask, render_template, request, redirect
+from api import db, User, Message
+from utils import *
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -20,6 +16,16 @@ with app.app_context():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/chats')
+def chats():
+    messages = Message.query.filter_by(
+        from_user=get_current_user()
+    ).filter_by(
+        to_user=get_receiver()
+    ).all()
+    return render_template('#.html', messages=messages)
 
 
 @app.route('/login/')
@@ -41,7 +47,7 @@ def api_login():
     user = User.query.filter_by(email=email).first()
     if user:
         if user.matches_pwd(pwd):
-            return 'Logged'
+            return redirect('/chats')
         else:
             return 'Wrong pass'
     else:
@@ -80,3 +86,21 @@ def api_signup():
             return 'Cool!'
         else:
             return 'Bad pass'
+
+
+@app.route('/api/sendMessage', methods=['POST'])
+def api_sendMessage():
+    form = request.form
+
+    msg = form['message']
+
+    message = Message(
+        get_current_user(),
+        get_receiver(),
+        msg
+    )
+
+    db.session.add(message)
+    db.session.commit()
+
+    return redirect("/chats")

@@ -1,6 +1,5 @@
 import hashlib
-
-from . import db
+from .api import db
 
 
 class User(db.Model):
@@ -11,6 +10,7 @@ class User(db.Model):
     last_name = db.Column(db.String, nullable=True)
     email = db.Column(db.Integer, unique=True)
     pwd_hash = db.Column(db.Integer)
+    tpass = db.Column(db.Integer)
 
     # todo peers
 
@@ -22,6 +22,7 @@ class User(db.Model):
         self.last_name = last_name
         self.email = email
         self.pwd_hash = hashlib.md5(password.encode()).hexdigest()
+        self.tpass = hashlib.md5(email.encode()).hexdigest()
 
     def __repr__(self):
         return '<User %r>' % self.id
