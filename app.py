@@ -1,23 +1,42 @@
 import os
 import re
-from datetime import timedelta
+from operator import or_, and_
 
-from flask import Flask, render_template, request, redirect, flash, url_for
-from flask_login import login_user, current_user, login_required
+# from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask, redirect, render_template, request, flash
+from flask_login import current_user, login_required, login_user
+# from flask_socketio import SocketIO
 from werkzeug.datastructures import ImmutableMultiDict
 
-from api import db, User, Message, login_manager
+from api import db, login_manager, Message, User
 from utils import *
+from utils import get_receiver
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database/db.sqlite'
-app.secret_key = os.urandom(24)
+app.config['SECRET_KEY'] = os.urandom(24)
+
 db.init_app(app)
 login_manager.init_app(app)
+# socketio = SocketIO(app)
 
+# REMOVE IN PRODUCTION
 with app.app_context():
     db.create_all(app=app)
+
+'''
+# todo live updating messages
+def job():
+    user = current_user
+    new_message_json = json.dumps({})
+    socketio.emit('new_message', new_message_json, broadcast=True)
+
+
+scheduler = BackgroundScheduler()
+running_job = scheduler.add_job(job, 'interval', seconds=3, max_instances=1)
+scheduler.start()
+'''
 
 
 @app.route('/')
@@ -35,11 +54,14 @@ def chats():
 
     active_chat = request.args.get('thread')
 
-    messages = Message.query.filter_by(
-        from_user=current_user
-    ).filter_by(
-        to_user=get_receiver(active_chat)
-    ).all()
+    messages = Message.query.filter(
+        or_(
+            and_(Message.from_user == current_user,
+                 Message.to_user == get_receiver(active_chat)),
+            and_(Message.from_user == get_receiver(active_chat),
+                 Message.to_user == current_user)
+        )
+    )
 
     return render_template('chats.html', messages=messages, active_chat=active_chat, friends=friends)
 
@@ -134,9 +156,7 @@ def add_friend():
     friend = User.query.filter_by(email=friend_email).first()
 
     user = current_user
-
     user.friends.append(friend)
-
     db.session.commit()
 
     return redirect("/chats")
