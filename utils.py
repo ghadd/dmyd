@@ -4,13 +4,10 @@ from api import User
 from crypto import decrypt
 
 
-def get_current_user():
-    # cookies
-    uid = 1
-    return User.query.filter_by(id=uid).first()
-
-
 def get_receiver(uid):
+    if not uid:
+        return None
+
     return User.query.filter_by(id=uid).first()
 
 

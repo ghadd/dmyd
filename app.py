@@ -2,9 +2,11 @@ import os
 import re
 from operator import or_, and_
 
-from flask import Flask, redirect, render_template, request, flash
+from pairing import *
+
+from flask import Flask, redirect, render_template, request, flash, session
 from flask_login import current_user, login_required, login_user
-from flask_socketio import SocketIO, join_room, emit
+from flask_socketio import SocketIO, join_room, emit, rooms
 from werkzeug.datastructures import ImmutableMultiDict
 
 from api import db, login_manager, Message, User
@@ -18,7 +20,7 @@ app.config['SECRET_KEY'] = os.urandom(24)
 
 db.init_app(app)
 login_manager.init_app(app)
-socketio = SocketIO(app)
+socketio = SocketIO(app, manage_session=False)
 
 # REMOVE IN PRODUCTION
 with app.app_context():
@@ -115,26 +117,6 @@ def signup():
             return render_template('signup.html', form=form)
 
 
-@app.route('/api/sendMessage', methods=['POST'])
-@login_required
-def api_sendMessage():
-    form = request.form
-
-    msg = form['message']
-    receiver_id = request.args.get('thread')
-
-    message = Message(
-        current_user,
-        get_receiver(receiver_id),
-        msg
-    )
-
-    db.session.add(message)
-    db.session.commit()
-
-    return redirect(f"/chats?thread={receiver_id}")
-
-
 @app.route('/api/addFriend', methods=['POST'])
 @login_required
 def add_friend():
@@ -150,14 +132,38 @@ def add_friend():
 
 @socketio.on('join_chat')
 def join_chat(arg):
-    chat_id = arg['chat_id']
-    join_room(chat_id)
+    receiver_id = arg['chat_id']
+
+    # if there is reflexive room - join it
+    p1, p2 = pair(current_user.id, receiver_id), pair(receiver_id, current_user.id)
+    if p2 in rooms():
+        chat_id = p2
+    # else connect to own one
+    else:
+        chat_id = p1
+
+    join_room(str(chat_id))
 
     current_user.current_chat = chat_id
     db.session.commit()
+    emit('enable_message_input')
 
 
 @socketio.on('send_message')
 def send_message(arg):
-    message = arg['message']
-    emit('update_message', room=current_user.current_chat)
+    msg = arg['message']
+    ids = depair(current_user.current_chat)
+    receiver_id = ids[0] if ids[0] != current_user.id else ids[1]
+
+    message = Message(
+        current_user,
+        get_receiver(receiver_id),
+        msg
+    )
+
+    db.session.add(message)
+    db.session.commit()
+    emit('update_message',
+         {'message': msg},
+         room=str(current_user.current_chat)
+         )
