@@ -17,6 +17,7 @@ class User(db.Model, UserMixin):
     first_name = db.Column(db.String)
     last_name = db.Column(db.String, nullable=True)
     email = db.Column(db.Integer, unique=True)
+    current_chat = db.Column(db.String, default='')
     pwd_hash = db.Column(db.Integer)
     tpass = db.Column(db.Integer)
 

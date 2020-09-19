@@ -8,18 +8,20 @@
 
             var socket = io.connect('http://' + document.domain + ':' + location.port);
 
-            //listens to 'price update' message on socket
-            socket.on('new_message', function (msg_json) {
-                const msg = JSON.parse(msg_json);
-                console.log(msg)
-                if (msg !== null) {
-                    var newMessage = document.createElement('p')
-                    newMessage.innerText = msg.contents
-                    newMessage.className = 'chat_message'
-                    $('.chat_message').lastChild().after(
-                        newMessage
-                    )
-                }
+            var $friend = $('.friend')
+            $friend.click = () => {
+                const chat_id = $friend.dataset.id;
+                console.log(chat_id);
+
+                socket.emit('join_chat', {
+                    'chat_id': chat_id
+                })
+            }
+
+            socket.on('update_message', (arg) => {
+                const message = arg['message'];
+                const newMessageElement = document.createElement('p')
+                newMessageElement.textContent = message
             });
 
         });
@@ -42,10 +44,10 @@
     </form>
 
     {% for friend in friends %}
-        <a href="/chats?thread={{ friend.id }}">{{ friend.first_name }}</a>
+        <button class="friend" data-id="{{ friend.id }}">{friend.first_name}</button>
     {% endfor %}
 
-    <div class="messages">
+    <div id="messages">
         {% for message in messages %}
             <p class="chat_message">{{ message.from_user.first_name }}:
                 {{ decrypt_message(message).decode() }}</p>

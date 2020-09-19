@@ -2,10 +2,9 @@ import os
 import re
 from operator import or_, and_
 
-# from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, redirect, render_template, request, flash
 from flask_login import current_user, login_required, login_user
-# from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room, emit
 from werkzeug.datastructures import ImmutableMultiDict
 
 from api import db, login_manager, Message, User
@@ -19,24 +18,11 @@ app.config['SECRET_KEY'] = os.urandom(24)
 
 db.init_app(app)
 login_manager.init_app(app)
-# socketio = SocketIO(app)
+socketio = SocketIO(app)
 
 # REMOVE IN PRODUCTION
 with app.app_context():
     db.create_all(app=app)
-
-'''
-# todo live updating messages
-def job():
-    user = current_user
-    new_message_json = json.dumps({})
-    socketio.emit('new_message', new_message_json, broadcast=True)
-
-
-scheduler = BackgroundScheduler()
-running_job = scheduler.add_job(job, 'interval', seconds=3, max_instances=1)
-scheduler.start()
-'''
 
 
 @app.route('/')
@@ -160,3 +146,18 @@ def add_friend():
     db.session.commit()
 
     return redirect("/chats")
+
+
+@socketio.on('join_chat')
+def join_chat(arg):
+    chat_id = arg['chat_id']
+    join_room(chat_id)
+
+    current_user.current_chat = chat_id
+    db.session.commit()
+
+
+@socketio.on('send_message')
+def send_message(arg):
+    message = arg['message']
+    emit('update_message', room=current_user.current_chat)
