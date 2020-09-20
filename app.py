@@ -2,8 +2,6 @@ import os
 import re
 from operator import or_, and_
 
-from pairing import *
-
 from flask import Flask, redirect, render_template, request, flash, session
 from flask_login import current_user, login_required, login_user
 from flask_socketio import SocketIO, join_room, emit, rooms
@@ -11,7 +9,6 @@ from werkzeug.datastructures import ImmutableMultiDict
 
 from api import db, login_manager, Message, User
 from utils import *
-from utils import get_receiver
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -39,19 +36,19 @@ def index():
 @login_required
 def chats():
     friends = current_user.friends
+    peer = get_active_chat_peer(current_user)
 
-    active_chat = request.args.get('thread')
-
+    # todo simplify by querying chat messages by connecting them to chats
     messages = Message.query.filter(
         or_(
             and_(Message.from_user == current_user,
-                 Message.to_user == get_receiver(active_chat)),
-            and_(Message.from_user == get_receiver(active_chat),
+                 Message.to_user == peer),
+            and_(Message.from_user == peer,
                  Message.to_user == current_user)
         )
     )
 
-    return render_template('chats.html', messages=messages, active_chat=active_chat, friends=friends)
+    return render_template('chats.html', messages=messages, friends=friends)
 
 
 @app.route('/login/', methods=['GET', 'POST'])
@@ -67,6 +64,9 @@ def login():
     if user:
         if user.matches_pwd(pwd):
             login_user(user)
+            # clearing prev last chat
+            user.current_chat_id = 0
+            db.session.commit()
             return redirect('/chats')
         else:
             flash("Wrong password.")
@@ -132,19 +132,17 @@ def add_friend():
 
 @socketio.on('join_chat')
 def join_chat(arg):
-    receiver_id = arg['chat_id']
+    peer_id = arg['chat_id']
 
-    # if there is reflexive room - join it
-    p1, p2 = pair(current_user.id, receiver_id), pair(receiver_id, current_user.id)
-    if p2 in rooms():
-        chat_id = p2
-    # else connect to own one
-    else:
-        chat_id = p1
+    chat = get_chat(current_user.id, peer_id)
+    if not chat:
+        chat = Chat(current_user, get_receiver(peer_id))
+        db.session.add(chat)
+        db.session.commit()
 
-    join_room(str(chat_id))
+    join_room(str(chat.id))
 
-    current_user.current_chat = chat_id
+    current_user.current_chat_id = chat.id
     db.session.commit()
     emit('enable_message_input')
 
@@ -152,7 +150,7 @@ def join_chat(arg):
 @socketio.on('send_message')
 def send_message(arg):
     msg = arg['message']
-    ids = depair(current_user.current_chat)
+    ids = depair(current_user.current_chat_id)
     receiver_id = ids[0] if ids[0] != current_user.id else ids[1]
 
     message = Message(
@@ -165,5 +163,5 @@ def send_message(arg):
     db.session.commit()
     emit('update_message',
          {'message': msg},
-         room=str(current_user.current_chat)
+         room=str(current_user.current_chat_id)
          )
