@@ -1,8 +1,4 @@
-import json
-
 from pairing import pair
-
-from crypto import *
 from .user import User
 from .api import db
 

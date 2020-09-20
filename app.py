@@ -2,9 +2,9 @@ import os
 import re
 from operator import or_, and_
 
-from flask import Flask, redirect, render_template, request, flash, session
+from flask import Flask, redirect, render_template, request, flash
 from flask_login import current_user, login_required, login_user
-from flask_socketio import SocketIO, join_room, emit, rooms
+from flask_socketio import SocketIO, join_room, emit
 from werkzeug.datastructures import ImmutableMultiDict
 
 from api import db, login_manager, Message, User
