@@ -6,21 +6,39 @@
     <script type="text/javascript" charset="utf-8">
         $(document).ready(function () {
 
-            var socket = io.connect('http://' + document.domain + ':' + location.port);
+            let socket = io.connect('http://' + document.domain + ':' + location.port);
 
-            //listens to 'price update' message on socket
-            socket.on('new_message', function (msg_json) {
-                const msg = JSON.parse(msg_json);
-                console.log(msg)
-                if (msg !== null) {
-                    var newMessage = document.createElement('p')
-                    newMessage.innerText = msg.contents
-                    newMessage.className = 'chat_message'
-                    $('.chat_message').lastChild().after(
-                        newMessage
-                    )
-                }
+            let $friend = $('.friend')
+            $friend.click(() => {
+                console.log($friend.data().id)
+                const chat_id = $friend.data().id;
+                console.log(chat_id);
+
+                socket.emit('join_chat', {
+                    'chat_id': chat_id
+                })
+            })
+
+            $('#send_button').click(() => {
+                socket.emit('send_message', {
+                    'message': $('#message').val()
+                })
+            })
+
+            socket.on('update_message', (arg) => {
+                const message = arg['message'];
+                const newMessageElement = document.createElement('p');
+                newMessageElement.textContent = message;
+
+                console.log(newMessageElement)
+
+                $('#messages').append(newMessageElement);
             });
+
+            socket.on('enable_message_input', () => {
+                $('.chat_open').css('display', 'block')
+                $('.no_chat_open').css('display', 'none')
+            })
 
         });
     </script>
@@ -42,28 +60,27 @@
     </form>
 
     {% for friend in friends %}
-        <a href="/chats?thread={{ friend.id }}">{{ friend.first_name }}</a>
+        <button class="friend" data-id="{{ friend.id }}">{{ friend.first_name }}</button>
     {% endfor %}
 
-    <div class="messages">
+    <div id="messages">
         {% for message in messages %}
             <p class="chat_message">{{ message.from_user.first_name }}:
                 {{ decrypt_message(message).decode() }}</p>
         {% endfor %}
     </div>
 
-    {% if active_chat %}
-        <form action="/api/sendMessage?thread={{ active_chat }}" method="POST">
-            <div class="textfield">
-                <label>
-                    <input type="text" name="message" id="message" placeholder="Type here...">
-                </label>
-                <input type="submit">
-            </div>
-        </form>
-    {% else %}
-        <div class="no_chat_open">
-            <h3>Select chat and communicate!</h3>
+    <div class="chat_open" style="display: none">
+        <div class="textfield">
+            <label>
+                <input type="text" name="message" id="message" placeholder="Type here...">
+            </label>
+            <button id="send_button">Send</button>
         </div>
-    {% endif %}
+    </div>
+
+    <div class="no_chat_open">
+        <h3>Select chat and communicate!</h3>
+    </div>
+
 {% endblock body %}

@@ -19,6 +19,7 @@ class User(db.Model, UserMixin):
     email = db.Column(db.Integer, unique=True)
     pwd_hash = db.Column(db.Integer)
     tpass = db.Column(db.Integer)
+    current_chat_id = db.Column(db.Integer, default=0)
 
     friends = db.relationship('User',  # defining the relationship, User is left side entity
                               secondary=friends_table,

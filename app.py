@@ -2,15 +2,13 @@ import os
 import re
 from operator import or_, and_
 
-# from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, redirect, render_template, request, flash
 from flask_login import current_user, login_required, login_user
-# from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room, emit
 from werkzeug.datastructures import ImmutableMultiDict
 
 from api import db, login_manager, Message, User
 from utils import *
-from utils import get_receiver
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -19,24 +17,11 @@ app.config['SECRET_KEY'] = os.urandom(24)
 
 db.init_app(app)
 login_manager.init_app(app)
-# socketio = SocketIO(app)
+socketio = SocketIO(app, manage_session=False)
 
 # REMOVE IN PRODUCTION
 with app.app_context():
     db.create_all(app=app)
-
-'''
-# todo live updating messages
-def job():
-    user = current_user
-    new_message_json = json.dumps({})
-    socketio.emit('new_message', new_message_json, broadcast=True)
-
-
-scheduler = BackgroundScheduler()
-running_job = scheduler.add_job(job, 'interval', seconds=3, max_instances=1)
-scheduler.start()
-'''
 
 
 @app.route('/')
@@ -51,19 +36,19 @@ def index():
 @login_required
 def chats():
     friends = current_user.friends
+    peer = get_active_chat_peer(current_user)
 
-    active_chat = request.args.get('thread')
-
+    # todo simplify by querying chat messages by connecting them to chats
     messages = Message.query.filter(
         or_(
             and_(Message.from_user == current_user,
-                 Message.to_user == get_receiver(active_chat)),
-            and_(Message.from_user == get_receiver(active_chat),
+                 Message.to_user == peer),
+            and_(Message.from_user == peer,
                  Message.to_user == current_user)
         )
     )
 
-    return render_template('chats.html', messages=messages, active_chat=active_chat, friends=friends)
+    return render_template('chats.html', messages=messages, friends=friends)
 
 
 @app.route('/login/', methods=['GET', 'POST'])
@@ -79,6 +64,9 @@ def login():
     if user:
         if user.matches_pwd(pwd):
             login_user(user)
+            # clearing prev last chat
+            user.current_chat_id = 0
+            db.session.commit()
             return redirect('/chats')
         else:
             flash("Wrong password.")
@@ -129,26 +117,6 @@ def signup():
             return render_template('signup.html', form=form)
 
 
-@app.route('/api/sendMessage', methods=['POST'])
-@login_required
-def api_sendMessage():
-    form = request.form
-
-    msg = form['message']
-    receiver_id = request.args.get('thread')
-
-    message = Message(
-        current_user,
-        get_receiver(receiver_id),
-        msg
-    )
-
-    db.session.add(message)
-    db.session.commit()
-
-    return redirect(f"/chats?thread={receiver_id}")
-
-
 @app.route('/api/addFriend', methods=['POST'])
 @login_required
 def add_friend():
@@ -160,3 +128,40 @@ def add_friend():
     db.session.commit()
 
     return redirect("/chats")
+
+
+@socketio.on('join_chat')
+def join_chat(arg):
+    peer_id = arg['chat_id']
+
+    chat = get_chat(current_user.id, peer_id)
+    if not chat:
+        chat = Chat(current_user, get_receiver(peer_id))
+        db.session.add(chat)
+        db.session.commit()
+
+    join_room(str(chat.id))
+
+    current_user.current_chat_id = chat.id
+    db.session.commit()
+    emit('enable_message_input')
+
+
+@socketio.on('send_message')
+def send_message(arg):
+    msg = arg['message']
+    ids = depair(current_user.current_chat_id)
+    receiver_id = ids[0] if ids[0] != current_user.id else ids[1]
+
+    message = Message(
+        current_user,
+        get_receiver(receiver_id),
+        msg
+    )
+
+    db.session.add(message)
+    db.session.commit()
+    emit('update_message',
+         {'message': msg},
+         room=str(current_user.current_chat_id)
+         )
